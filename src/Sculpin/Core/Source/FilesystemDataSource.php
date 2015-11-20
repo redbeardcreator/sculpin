@@ -158,21 +158,9 @@ class FilesystemDataSource implements DataSourceInterface
                 }
             }
 
-            $isRaw = false;
-
-            foreach ($this->raws as $pattern) {
-                if (!$this->matcher->isPattern($pattern)) {
-                    continue;
-                }
-                if ($this->matcher->match(
-                        $pattern,
-                        $this->directorySeparatorNormalizer->normalize($file->getRelativePathname())
-                    )
-                ) {
-                    $isRaw = true;
-                    break;
-                }
             }
+
+            $isRaw = $this->fileRaw($file);
 
             $source = new FileSource($this->analyzer, $this, $file, $isRaw, true);
             $sourceSet->mergeSource($source);
@@ -218,6 +206,31 @@ class FilesystemDataSource implements DataSourceInterface
             )
             ) {
                 // Ignored files are completely ignored.
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if the given file is on the raw list
+     *
+     * @param SplFileInfo $file  The file to check
+     *
+     * @return bool
+     */
+    protected function fileRaw(SplFileInfo $file)
+    {
+        foreach ($this->raws as $pattern) {
+            if (!$this->matcher->isPattern($pattern)) {
+                continue;
+            }
+            if ($this->matcher->match(
+                $pattern,
+                $this->directorySeparatorNormalizer->normalize($file->getRelativePathname())
+            )
+            ) {
                 return true;
             }
         }
