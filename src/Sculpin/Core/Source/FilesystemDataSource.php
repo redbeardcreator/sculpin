@@ -212,9 +212,21 @@ class FilesystemDataSource implements DataSourceInterface
         if ($excludedFilesHaveChanged) {
             // If any of the exluded files have changed we should
             // mark all of the sources as having changed.
-            foreach ($sourceSet->allSources() as $source) {
-                $source->setHasChanged();
-            }
+            $this->markAllChanged($sourceSet);
+        }
+    }
+
+    /**
+     * Mark all the files in a SourceSet as changed
+     *
+     * Should this be moved to the SourceSet?
+     *
+     * @param SplFileInfo $file  The file to check
+     */
+    protected function markAllChanged(SourceSet $sourceSet)
+    {
+        foreach ($sourceSet->allSources() as $source) {
+            $source->setHasChanged();
         }
     }
 }
