@@ -11,6 +11,7 @@
 
 namespace Sculpin\Core\Source;
 
+use SplFileInfo;
 use Dflydev\Canal\Analyzer\Analyzer;
 use Dflydev\Symfony\FinderFactory\FinderFactory;
 use Dflydev\Symfony\FinderFactory\FinderFactoryInterface;
@@ -140,19 +141,8 @@ class FilesystemDataSource implements DataSourceInterface
         $files = $this->getChangedFiles($sourceSet);
 
         foreach ($files as $file) {
-            foreach ($this->ignores as $pattern) {
-                if (!$this->matcher->isPattern($pattern)) {
-                    continue;
-                }
-                if (
-                    $this->matcher->match(
-                        $pattern,
-                        $this->directorySeparatorNormalizer->normalize($file->getRelativePathname())
-                    )
-                ) {
-                    // Ignored files are completely ignored.
-                    continue 2;
-                }
+            if ($this->fileIgnored($file)) {
+                continue;
             }
             foreach ($this->excludes as $pattern) {
                 if (!$this->matcher->isPattern($pattern)) {
@@ -207,6 +197,32 @@ class FilesystemDataSource implements DataSourceInterface
         foreach ($sourceSet->allSources() as $source) {
             $source->setHasChanged();
         }
+    }
+
+    /**
+     * Determine if the given file is on the ignored list
+     *
+     * @param SplFileInfo $file  The file to check
+     *
+     * @return bool
+     */
+    protected function fileIgnored(SplFileInfo $file)
+    {
+        foreach ($this->ignores as $pattern) {
+            if (!$this->matcher->isPattern($pattern)) {
+                continue;
+            }
+            if ($this->matcher->match(
+                $pattern,
+                $this->directorySeparatorNormalizer->normalize($file->getRelativePathname())
+            )
+            ) {
+                // Ignored files are completely ignored.
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
