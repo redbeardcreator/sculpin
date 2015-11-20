@@ -144,20 +144,10 @@ class FilesystemDataSource implements DataSourceInterface
             if ($this->fileIgnored($file)) {
                 continue;
             }
-            foreach ($this->excludes as $pattern) {
-                if (!$this->matcher->isPattern($pattern)) {
-                    continue;
-                }
-                if ($this->matcher->match(
-                        $pattern,
-                        $this->directorySeparatorNormalizer->normalize($file->getRelativePathname())
-                    )
-                ) {
-                    $excludedFilesHaveChanged = true;
-                    continue 2;
-                }
-            }
 
+            if ($this->fileExcluded($file)) {
+                $excludedFilesHaveChanged = true;
+                continue;
             }
 
             $isRaw = $this->fileRaw($file);
@@ -185,6 +175,31 @@ class FilesystemDataSource implements DataSourceInterface
         foreach ($sourceSet->allSources() as $source) {
             $source->setHasChanged();
         }
+    }
+
+    /**
+     * Determine if the given file is on the excluded list
+     *
+     * @param SplFileInfo $file  The file to check
+     *
+     * @return bool
+     */
+    protected function fileExcluded(SplFileInfo $file)
+    {
+        foreach ($this->excludes as $pattern) {
+            if (!$this->matcher->isPattern($pattern)) {
+                continue;
+            }
+
+            if ($this->matcher->match(
+                $pattern,
+                $this->directorySeparatorNormalizer->normalize($file->getRelativePathname())
+            )) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
