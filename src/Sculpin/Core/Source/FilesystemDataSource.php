@@ -137,14 +137,9 @@ class FilesystemDataSource implements DataSourceInterface
         // We regenerate the whole site if an excluded file changes.
         $excludedFilesHaveChanged = false;
 
-
         $files = $this->getChangedFiles($sourceSet);
 
         foreach ($files as $file) {
-            if ($this->fileIgnored($file)) {
-                continue;
-            }
-
             if ($this->fileExcluded($file)) {
                 $excludedFilesHaveChanged = true;
                 continue;
@@ -285,6 +280,10 @@ class FilesystemDataSource implements DataSourceInterface
                 //
                 // Sometimes this may result in the file looking like it
                 // has been modified twice in a row when it has not.
+                continue;
+            }
+
+            if ($this->fileIgnored($file)) {
                 continue;
             }
 
