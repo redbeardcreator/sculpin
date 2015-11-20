@@ -133,34 +133,13 @@ class FilesystemDataSource implements DataSourceInterface
      */
     public function refresh(SourceSet $sourceSet)
     {
-        $sinceTimeLast = $this->sinceTime;
-
-        $this->sinceTime = date('c');
-
         // We regenerate the whole site if an excluded file changes.
         $excludedFilesHaveChanged = false;
 
-        $files = $this
-            ->finderFactory->createFinder()
-            ->files()
-            ->ignoreVCS(true)
-            ->ignoreDotFiles(false)
-            ->date('>='.$sinceTimeLast)
-            ->followLinks()
-            ->in($this->sourceDir);
 
-        $sinceTimeLastSeconds = strtotime($sinceTimeLast);
+        $files = $this->getChangedFiles($sourceSet);
 
         foreach ($files as $file) {
-            if ($sinceTimeLastSeconds > $file->getMTime()) {
-                // This is a hack because Finder is actually incapable
-                // of resolution down to seconds.
-                //
-                // Sometimes this may result in the file looking like it
-                // has been modified twice in a row when it has not.
-                continue;
-            }
-
             foreach ($this->ignores as $pattern) {
                 if (!$this->matcher->isPattern($pattern)) {
                     continue;
@@ -228,5 +207,46 @@ class FilesystemDataSource implements DataSourceInterface
         foreach ($sourceSet->allSources() as $source) {
             $source->setHasChanged();
         }
+    }
+
+    /**
+     * Find all the changed files in the given SourceSet
+     *
+     * @pararm SourceSet $sourceSet  The set to check
+     *
+     * @return array  An array of SplFileInfo files
+     */
+    protected function getChangedFiles(SourceSet $sourceSet)
+    {
+        $sinceTimeLast = $this->sinceTime;
+        $this->sinceTime = date('c');
+
+        $files = $this
+            ->finderFactory->createFinder()
+            ->files()
+            ->ignoreVCS(true)
+            ->ignoreDotFiles(false)
+            ->date('>='.$sinceTimeLast)
+            ->followLinks()
+            ->in($this->sourceDir);
+
+        $sinceTimeLastSeconds = strtotime($sinceTimeLast);
+
+        $changedFiles = [];
+
+        foreach ($files as $file) {
+            if ($sinceTimeLastSeconds > $file->getMTime()) {
+                // This is a hack because Finder is actually incapable
+                // of resolution down to seconds.
+                //
+                // Sometimes this may result in the file looking like it
+                // has been modified twice in a row when it has not.
+                continue;
+            }
+
+            $changedFiles[] = $file;
+        }
+
+        return $changedFiles;
     }
 }
