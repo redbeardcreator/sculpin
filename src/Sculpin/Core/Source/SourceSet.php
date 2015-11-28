@@ -70,6 +70,21 @@ class SourceSet
         $this->sources[$source->sourceId()] = $source;
     }
 
+    public function removeSource(SourceInterface $source)
+    {
+        echo "Removing " . $source->sourceId() . ':' . $source->filename();
+        if ($this->containsSource($source)) {
+            echo '...found';
+            unset($this->sources[$source->sourceId()]);
+            if ($this->containsSource($source)) {
+                echo '...ugh! Still there';
+            } else {
+                echo '...removed';
+            }
+        }
+        echo "\n";
+    }
+
     /**
      * All sources
      *

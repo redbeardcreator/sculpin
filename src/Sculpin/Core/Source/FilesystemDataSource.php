@@ -139,6 +139,10 @@ class FilesystemDataSource implements DataSourceInterface
 
         $files = $this->getChangedFiles($sourceSet);
 
+        if ($this->filesDeleted($sourceSet)) {
+            $excludedFilesHaveChanged = true;
+        }
+
         foreach ($files as $file) {
             if ($this->fileExcluded($file)) {
                 $excludedFilesHaveChanged = true;
@@ -260,36 +264,128 @@ class FilesystemDataSource implements DataSourceInterface
         $sinceTimeLast = $this->sinceTime;
         $this->sinceTime = date('c');
 
-        $files = $this
+        $newFiles = $this->getFileList();
+
+        $sinceTimeLastSeconds = strtotime($sinceTimeLast);
+        $isChanged = function ($file) use ($sinceTimeLastSeconds) {
+            return $file->getMTime() >= $sinceTimeLastSeconds;
+        };
+
+        // Switch to the more useful filename as a key
+        $lastSet = $sourceSet->allSources();
+        $lastFilenames = array_map(
+            function ($source) {
+                return $source->file()->getPathname();
+            },
+            array_values($lastSet)
+        );
+
+        $lastSet = array_combine($lastFilenames, $lastSet);
+
+        $newFilenames = array_keys($newFiles);
+
+        $excludedFiles = array_filter(
+            $newFilenames,
+            function ($filename) use ($newFiles) {
+                return $this->fileExcluded($newFiles[$filename]);
+            }
+        );
+
+        // Remove the excluded files
+        $nonExcludedFilenames = array_diff($newFilenames, $excludedFiles);
+        $addedFiles = array_diff($nonExcludedFilenames, $lastFilenames);
+        $deletedFiles = array_diff($lastFilenames, $nonExcludedFilenames);
+
+        $changedFiles = [];
+        foreach ($newFiles as $file) {
+            if ($isChanged($file)) {
+                continue;
+            }
+            $changedFiles[$file->getPathname()] = $file;
+        }
+
+
+
+        $excludedChanged = false;
+        foreach ($excludedFiles as $filename) {
+            if ($isChanged($newFiles[$filename])) {
+                $excludedChanged = true;
+                break;
+            }
+        }
+
+        echo "added\n" . implode("\n", $addedFiles);
+        echo "\n\ndeleted\n". implode("\n", $deletedFiles);
+        echo "\n\nExcluded\n" . implode("\n", $excludedFiles);
+        echo "\n\nChanged\n" . implode("\n", array_keys($changedFiles));
+        echo "\n\n";
+
+        return $changedFiles;
+    }
+
+    function getFileList()
+    {
+        $sourceFiles = $this
             ->finderFactory->createFinder()
             ->files()
             ->ignoreVCS(true)
             ->ignoreDotFiles(false)
-            ->date('>='.$sinceTimeLast)
+            // ->date('>='.$sinceTimeLast)
             ->followLinks()
             ->in($this->sourceDir);
 
-        $sinceTimeLastSeconds = strtotime($sinceTimeLast);
-
-        $changedFiles = [];
-
-        foreach ($files as $file) {
-            if ($sinceTimeLastSeconds > $file->getMTime()) {
-                // This is a hack because Finder is actually incapable
-                // of resolution down to seconds.
-                //
-                // Sometimes this may result in the file looking like it
-                // has been modified twice in a row when it has not.
-                continue;
-            }
-
+        $filteredFiles = [];
+        foreach ($sourceFiles as $file) {
             if ($this->fileIgnored($file)) {
                 continue;
             }
 
-            $changedFiles[] = $file;
+            $filteredFiles[$file->getPathname()] = $file;
         }
 
-        return $changedFiles;
+        return $filteredFiles;
+    }
+
+    /**
+     * Determine if any files in the given SourceSet have been deleted
+     *
+     * @param SourceSet $sourceSet  The set to scan
+     *
+     * @return bool
+     */
+    protected function filesDeleted(SourceSet $sourceSet)
+    {
+        // Find out what's removed from old by using array_key_diff between new list and
+        // old where the key is the full path
+
+        $oldSourceList = [];
+        foreach ($sourceSet->allSources() as $source) {
+            // Need to know the the actual Source so we can mark it later
+            $oldSourceList[$source->file()->getPathname()] = $source;
+        }
+
+        $newFileList = [];
+        $newFiles = $this
+            ->finderFactory->createFinder()
+            ->files()
+            ->ignoreVCS(true)
+            ->ignoreDotFiles(false)
+            ->followLinks()
+            ->in($this->sourceDir);
+
+        foreach ($newFiles as $file) {
+            // Don't care what the new files actually are, just the path
+            $newFileList[$file->getPathname()] = $file;
+        }
+
+        $deletedSources = array_diff_key($oldSourceList, $newFileList);
+
+        foreach ($deletedSources as $source) {
+            $sourceSet->removeSource($source);
+        }
+
+        $addedSources = array_diff_key($newFileList, $oldSourceList);
+
+        return count($deletedSources) > 0;
     }
 }
